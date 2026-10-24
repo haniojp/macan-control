@@ -1,4 +1,24 @@
-# テスト結果
+# API連携のテスト結果（2026-10-24）
+
+新規のPorsche Connect読み取り専用サーバーと接続画面を追加。
+
+- バックエンド：`python -m pytest backend/tests -q` **26件成功**。
+- ブラウザ：Chromiumのデスクトップ・iPhoneサイズで **20件成功**（既存機能12件を含む）。
+- JavaScript構文チェック・git diff --check成功。
+
+バックエンド検証：実際にインストールしたpyporscheconnectapi 0.2.9とhttpx.MockTransportによるHTTP形式確認、必要measurementだけのGET、5分キャッシュ・同時取得の抑制、取得失敗・タイムアウト・認証失敗・回数制限、CAPTCHAのPKCE transaction再開、値欠損と充電状態、CORS・Bearer認証・no-store、VIN／位置／トークンを返さないこと。
+
+ブラウザ検証：模擬APIからの車両表示、5分更新、API取得／測定時刻表示、キーをlocalStorage・バックアップへ書かないこと、画像認証、失敗表示、欠損値、接続解除・通信キャンセル、HTTPS以外のURL拒否、および既存の整備CRUD・CSV・JSON・オフライン。
+
+GitHub ActionsはWebKitを含む3ブラウザ設定とバックエンドテストを実行する。WebKitでのオフラインテストはPlaywrightの制約によりスキップ。
+
+**実車のPorscheアカウントによる認証・取得、Renderへの設置、iPhone実機での取得は未検証。** Renderのアカウント作成とPorsche IDの秘密変数設定は利用者が行う必要がある。非公式APIのため、認証方式・地域・契約・クラウドIPによる制限で接続できない場合がある。設置手順はdocs/API_SETUP.md。
+
+---
+
+## 前回のPWA対応のテスト記録
+
+
 
 実施日：2026-10-24（日本時間）
 

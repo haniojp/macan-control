@@ -2,3 +2,12 @@ node_modules/
 test-results/
 playwright-report/
 work/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.porscheconnect.cfg
+*porsche*session*.json

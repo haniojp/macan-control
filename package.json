@@ -1,7 +1,7 @@
 {
   "name": "macan-control",
   "version": "1.0.0",
-  "description": "iPhone Safari向け静的PWA。Porsche API連携は **まだありません**。数値はサンプルまたはユーザー入力であり、実車の値ではありません。",
+  "description": "iPhone Safari向け車両管理PWAと読み取り専用Porsche Connectブリッジ。",
   "main": "app.js",
   "scripts": {
     "test": "playwright test"
