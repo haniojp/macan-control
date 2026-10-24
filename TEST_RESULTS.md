@@ -19,6 +19,10 @@
 
 `node --check app.js`、`node --check sw.js`、`git diff --check` も成功。
 
+## GitHub Actionsでの結果
+
+[実行結果](https://github.com/haniojp/macan-control/actions/runs/40078311751)：**17件成功、失敗0件、1件スキップ**。iPhoneサイズWebKit・iPhoneサイズChromium・デスクトップChromiumで確認。スキップはWebKitのオフラインテストのみ。デプロイジョブはPR上では実行しない設定のためスキップ。
+
 ## WebKit / 実機の範囲
 
 この環境ではWebKitの配布ドメインがネットワークポリシーで403（Domain forbidden）となり、ローカルWebKitテストは実行できなかった。GitHub Actionsで同じシナリオをiPhoneサイズのWebKitでも実行する設定を追加済み。WebKitではPlaywrightのサービスワーカー制御に制限があるためオフラインテスト1件を明示的にスキップする。
