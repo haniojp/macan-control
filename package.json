@@ -1,0 +1,25 @@
+{
+  "name": "macan-control",
+  "version": "1.0.0",
+  "description": "iPhone Safari向け静的PWA。Porsche API連携は **まだありません**。数値はサンプルまたはユーザー入力であり、実車の値ではありません。",
+  "main": "app.js",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haniojp/macan-control.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/haniojp/macan-control/issues"
+  },
+  "homepage": "https://github.com/haniojp/macan-control#readme",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
