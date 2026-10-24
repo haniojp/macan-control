@@ -1,39 +1,45 @@
-# Macan Control — serverless PWA starter
+# Macan Control
 
-iPhone Safari向け静的PWA。Porsche API連携は **まだありません**。数値はサンプルまたはユーザー入力であり、実車の値ではありません。
+iPhone Safari向けの静的車両管理アプリ。Porsche API接続は行いません。表示値は手入力・JSON取込・明示的なサンプルの記録です。
 
-## 起動
+## 機能
 
-ローカルで `python -m http.server 8000` を実行し `http://localhost:8000` を開く（開発用）。iPhoneにホーム画面追加してオフライン動作させるには HTTPS 上に静的ファイルを配信（例：GitHub Pages）。GitHub Pagesを利用する場合、**公開リポジトリに車両データや認証情報をコミットしない**。JSONデータはローカルファイル選択で取り込む。
+- 車両情報（残量・航続可能距離・走行距離・充電状態）と残量グラフ、直近50件の一覧
+- ワイパー交換、タイヤ、点検などの整備記録の登録・編集・削除
+- 車両情報・整備履歴それぞれのCSV出力とJSONバックアップ・取込
+- ホーム画面用アイコン、オフライン起動、iPhoneのセーフエリア対応
 
-## JSON形式
+データは端末のlocalStorageに保存します（既存キー `macan-control-records-v1` と `macan-control-maintenance-v1` を維持）。ブラウザデータの削除・端末変更に備え、**車両情報と整備履歴の両方のJSON**を保存してください。CSVは閲覧用で、復元はJSONを使用します。
 
-`sample-snapshot.json` を参照。`timestamp` はISO8601、`soc` は0–100、`rangeKm`・`odometerKm` は0以上、`chargingStatus` は文字列。単体オブジェクトまたは配列に対応。null/省略可。ただし最低1項目が必要。数値型の不正値はエラー。
+車両JSONは `sample-snapshot.json` と同じオブジェクト、またはその配列です。timestampはISO8601、socは0–100、rangeKm・odometerKmは0以上、chargingStatusは文字列。整備JSONはアプリから保存した配列を使用します。同じ整備IDは更新されます。取込上限は1MB・1000件／回です。車両JSON取込は追加方式なので、同じバックアップの再取込で重複します。
 
-## 現在の範囲
+## GitHub Pagesで公開
 
-- 手入力・JSON読み込み・サンプル追加
-- 直近データ表示、残量グラフ、最大50件履歴、CSV出力
-- ブラウザlocalStorage保存、静的オフラインキャッシュ
+1. Pull Requestをmainへマージします。
+2. リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** に設定します。
+3. 「Test and deploy Pages」ワークフローを実行します（mainへのpushでも実行）。テスト成功後、配信用静的ファイルのみをPagesへアップロードします。
+4. 公開先は通常 `https://haniojp.github.io/macan-control/` です。実際のURLはActionsのdeployment出力で確認します。
 
-## 注意
+公開リポジトリに個人の車両記録や認証情報をコミットしないでください。JSON取込は端末内だけで処理されます。
 
-- Safariのサイトデータ削除、プライベートブラウズ等で履歴消失の可能性あり。定期的にCSVを保存する。
-- 共有iPhoneや共有ブラウザに個人車両データを置かない。
-- リアルタイム取得・バックグラウンド更新・Porscheへの認証は未実装。
-- 非公式APIへの接続時はアカウント利用条件と安全性を確認する。認証情報をGitHubやブラウザに埋め込まない。
+## iPhoneで利用
 
-## 次のCodexタスク
+Safariで公開URLを開き、共有 →「ホーム画面に追加」→「追加」。初回はオンラインで開き、その後ホーム画面のアイコンで起動します。Safariにホーム画面追加用の自動プロンプトはありません。更新が保留される場合は、このアプリのタブ・ホーム画面アプリをすべて閉じて再度開きます。オンライン時は新しいファイルを取得し、オフライン時は保存済み画面を使用します。
 
-1. `pyporscheconnectapi` の現行サンプルと認証フローを調査。
-2. 書き込み操作は実装せず、ローカルPC上の取得CLIで車両状態をJSON出力。
-3. 機密情報(VIN/位置/トークン/認証情報)を除外して、このPWAのJSONスキーマに正規化。
-4. fixtureを使った自動テスト、エラー・欠損項目のテストを追加。
-5. 実車検証を経て接続済み項目だけUI表示。
+CSV／JSONボタンからファイルを保存し、Safariのダウンロード一覧／「ファイル」アプリで確認します。ホーム画面アプリとSafariで保存領域が異なる場合があるため、移行はJSONで行ってください。
 
+## 開発・自動テスト
 
-## メンテナンス記録（v2）
+アプリ自体はビルド不要です。`python3 -m http.server 8000` で起動できます。サービスワーカーはHTTPSまたはlocalhostで有効です。
 
-ワイパー交換、タイヤ、充電設備、定期点検、修理、清掃・コーティング、その他を記録。作業日（必須）、分類（必須）、走行距離、費用、部品名・型番、作業場所、次回予定日、自由メモを入力できる。整備履歴は一覧表示・編集・削除が可能。CSV出力、JSONバックアップ・復元に対応。
+```sh
+npm ci
+npx playwright install --with-deps webkit chromium
+npm test
+```
 
-**保存場所**：端末ブラウザのlocalStorage（キー `macan-control-maintenance-v1`）。車両データの履歴とは別保存。ブラウザデータ削除・端末移行に備え、JSONバックアップを定期作成すること。CSVは一覧表用でありアプリへの復元にはJSONを使用する。写真添付・通知・Porsche APIによる整備履歴取得は未実装。
+テストは `/macan-control/` のサブパスで、iPhoneサイズのWebKit・ChromiumおよびデスクトップChromiumを対象とします。車両登録／再読込、整備CRUD、CSV内容、JSON復元、異常入力、保存失敗、アイコン、横スクロールを確認します。オフライン再読込はサービスワーカー制御に対応するChromiumで確認します。
+
+実行環境でシステムChromiumを使う場合は `CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm test -- --project=chromium --project=mobile-chromium`。
+
+実機のSafari、共有メニュー、ホーム画面インストール、端末内のファイル保存については公開後の実機確認が必要です。テスト結果は `TEST_RESULTS.md` に記載します。
