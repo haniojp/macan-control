@@ -54,3 +54,23 @@ test('disconnect cancels in-flight requests and insecure server URLs are rejecte
  await page.locator('#apiUrl').fill('http://bridge.example');await page.locator('#apiKey').fill(KEY);await page.locator('#apiConnect').click();await expect(page.locator('#apiMessage')).toContainText('https://');expect(started).toBe(false);
  await connect(page);await expect.poll(()=>started).toBe(true);await page.locator('#apiDisconnect').click();release();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');await expect(page.locator('#soc')).toHaveText('—');expect(await page.evaluate(()=>localStorage.getItem('macan-control-records-v1'))).toBeNull();
 });
+
+test('trip summaries show four metrics, units and distinct periods',async({page})=>{
+ const short={distanceKm:62.4,averageConsumptionKwhPer100Km:20,drivingTimeMinutes:90,averageSpeedKmh:41.6,tripEndTime:'2026-10-25T01:00:00Z'};
+ await mock(page,async()=>({body:{...response(),tripStatistics:{status:'available',fetchedAt:'2026-10-25T01:01:00Z',periods:{shortTerm:short,longTerm:{...short,distanceKm:1000,averageConsumptionKwhPer100Km:25},sinceCharge:{...short,distanceKm:120}}}}}));
+ await connect(page);await expect(page.locator('#tripConsumption')).toHaveText('20 kWh/100km');await expect(page.locator('#tripEfficiency')).toHaveText('換算：5 km/kWh');await expect(page.locator('#tripDistance')).toHaveText('62.4 km');await expect(page.locator('#tripDuration')).toHaveText('90 分');await expect(page.locator('#tripSpeed')).toHaveText('41.6 km/h');await expect(page.locator('#tripTimestamp')).toContainText('集計データの終了日時');
+ await page.locator('#tripPeriod').selectOption('longTerm');await expect(page.locator('#tripDistance')).toHaveText('1,000 km');await expect(page.locator('#tripEfficiency')).toHaveText('換算：4 km/kWh');
+ await page.locator('#tripPeriod').selectOption('sinceCharge');await expect(page.locator('#tripDistance')).toHaveText('120 km');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await mock(page,async()=>({status:502,body:{code:'PORSCHE_UNAVAILABLE'}}));await page.locator('#apiRefresh').click();await expect(page.locator('#tripMessage')).toContainText('前回取得した値');await page.locator('#tripPeriod').selectOption('shortTerm');await expect(page.locator('#tripMessage')).toContainText('前回取得した値');
+ await page.locator('#apiDisconnect').click();await expect(page.locator('#tripDistance')).toHaveText('未取得');await expect(page.locator('#tripEfficiency')).toHaveText('');
+});
+
+test('missing and zero trip metrics are distinct; optional errors preserve battery',async({page})=>{
+ let body={...response(),tripStatistics:{status:'available',fetchedAt:response().fetchedAt,periods:{shortTerm:{distanceKm:0,averageConsumptionKwhPer100Km:0,drivingTimeMinutes:null,averageSpeedKmh:null,tripEndTime:null}}}};
+ await mock(page,async()=>({body}));await connect(page);
+ await expect(page.locator('#tripDistance')).toHaveText('0 km');await expect(page.locator('#tripConsumption')).toHaveText('0 kWh/100km');await expect(page.locator('#tripEfficiency')).toHaveText('');await expect(page.locator('#tripDuration')).toHaveText('未取得');
+ await page.locator('#tripPeriod').selectOption('longTerm');await expect(page.locator('#tripMessage')).toContainText('取得できませんでした');await expect(page.locator('#tripDistance')).toHaveText('未取得');
+ body={...response(),tripStatistics:{status:'error',fetchedAt:response().fetchedAt,periods:{}}};await page.locator('#apiRefresh').click();await expect(page.locator('#tripMessage')).toContainText('走行統計を取得できませんでした');await expect(page.locator('#soc')).toHaveText('64%');
+ body=response();await page.locator('#apiRefresh').click();await expect(page.locator('#tripMessage')).toContainText('サーバーを更新');await expect(page.locator('#soc')).toHaveText('64%');
+});

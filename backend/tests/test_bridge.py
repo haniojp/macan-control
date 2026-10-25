@@ -73,7 +73,7 @@ class Connection:
 async def test_read_only_measurements_cache_and_single_flight():
     conn=Connection();p=PorscheProvider('owner','secret',connection=conn)
     a,b=await asyncio.gather(p.snapshot(),p.snapshot())
-    assert a==b and len(conn.calls)==2
+    assert a==b and len(conn.calls)==3
     assert conn.calls[1][1]==[('mf',key) for key in MEASUREMENTS]
     assert all('wakeUpJob' not in path and 'GPS' not in str(params) for path,params in conn.calls)
     await p.close();assert conn.closed
@@ -186,6 +186,9 @@ async def test_installed_sdk_request_contract_with_mock_transport():
         assert request.headers['authorization']=='Bearer fake-upstream-token'
         if request.url.path.endswith('/vehicles'):
             return httpx.Response(200,json=[{'vin':VIN}])
+        from backend.trips import TRIP_MEASUREMENTS
+        if request.url.params.get_list('mf')==list(TRIP_MEASUREMENTS):
+            return httpx.Response(200,json={'measurements':[]})
         assert request.url.params.get_list('mf')==list(MEASUREMENTS)
         assert 'wakeUpJob' not in request.url.params
         return httpx.Response(200,json=payload())
@@ -193,5 +196,6 @@ async def test_installed_sdk_request_contract_with_mock_transport():
     connection=SDKConnection(async_client=client,token={'access_token':'fake-upstream-token','refresh_token':'fake-refresh','expires_at':int(time.time())+3600})
     provider=PorscheProvider('owner','secret',connection=connection)
     result=await provider.snapshot()
-    assert result['snapshot']['soc']==78 and len(requests)==2
+    assert result['snapshot']['soc']==78 and len(requests)==3
+    assert result['tripStatistics']['status']=='unavailable'
     await provider.close()
