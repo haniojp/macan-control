@@ -74,3 +74,34 @@ test('missing and zero trip metrics are distinct; optional errors preserve batte
  body={...response(),tripStatistics:{status:'error',fetchedAt:response().fetchedAt,periods:{}}};await page.locator('#apiRefresh').click();await expect(page.locator('#tripMessage')).toContainText('走行統計を取得できませんでした');await expect(page.locator('#soc')).toHaveText('64%');
  body=response();await page.locator('#apiRefresh').click();await expect(page.locator('#tripMessage')).toContainText('サーバーを更新');await expect(page.locator('#soc')).toHaveText('64%');
 });
+
+test('remembered connection reconnects after reload and can be removed without backing up the key',async({page})=>{
+ let calls=0;await mock(page,async request=>{calls++;expect(request.headers().authorization).toBe('Bearer '+KEY);return {body:response()};});
+ await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#apiRememberMessage')).toContainText('保存しました');
+ await expect(page.locator('#apiKey')).toHaveValue('');
+ await page.reload();await expect(page.locator('#connectionStatus')).toHaveText('API接続中');await expect.poll(()=>calls).toBe(2);await expect(page.locator('#apiRemember')).toBeChecked();
+ const downloadEvent=page.waitForEvent('download');await page.locator('#vehicleBackup').click();const download=await downloadEvent;const json=await require('node:fs/promises').readFile(await download.path(),'utf8');expect(json).not.toContain(KEY);
+ await page.locator('#apiForget').click();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();
+ await page.reload();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');await expect(page.locator('#apiRemember')).not.toBeChecked();expect(calls).toBe(2);
+});
+
+test('turning off remember and disconnecting prevent automatic reconnection',async({page})=>{
+ await mock(page,async()=>({body:response()}));await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+ await page.locator('#apiRemember').uncheck();expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+ await page.locator('#apiRemember').check();await expect(page.locator('#apiRememberMessage')).toContainText('保存しました');await page.locator('#apiDisconnect').click();await page.reload();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');
+});
+
+test('restored keys stay bound to their stored server and invalid keys are forgotten',async({page})=>{
+ let invalid=false;await mock(page,async request=>{expect(request.headers().authorization).toBe('Bearer '+KEY);return invalid?{status:401,body:{detail:{code:'BRIDGE_AUTH_REQUIRED'}}}:{body:response()};});
+ await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+ await page.evaluate(()=>localStorage.setItem('macan-control-api-url-v1','https://wrong.example'));
+ await page.reload();await expect(page.locator('#apiUrl')).toHaveValue(servers.get(page).url);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+ invalid=true;await page.locator('#apiRefresh').click();await expect(page.locator('#apiMessage')).toContainText('接続キーが一致しません');expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();await page.reload();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');
+});
+
+test('storage failures are visible and clearing all data also removes remembered credentials',async({page})=>{
+ await mock(page,async()=>({body:response()}));await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+ page.once('dialog',d=>d.accept());await page.locator('#clear').click();expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');
+ await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(name,value){if(name==='macan-control-api-connection-v1')throw new DOMException('full','QuotaExceededError');return original.call(this,name,value);};});
+ await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');await expect(page.locator('#apiRememberMessage')).toContainText('保存できませんでした');
+});
