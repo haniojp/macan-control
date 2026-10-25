@@ -13,6 +13,8 @@ from pyporscheconnectapi.connection import Connection
 from pyporscheconnectapi.exceptions import PorscheCaptchaRequiredError, PorscheWrongCredentialsError, PorscheExceptionError
 from pyporscheconnectapi.oauth2 import Captcha
 
+from .trips import TRIP_MEASUREMENTS, normalize_trips
+
 # Upstream debug logs can contain tokens, VINs and login forms.
 logging.getLogger("pyporscheconnectapi").setLevel(logging.CRITICAL + 1)
 logging.getLogger("pyporscheconnectapi").propagate = False
@@ -168,5 +170,20 @@ class PorscheProvider:
         if not isinstance(self.vin, str) or not re.fullmatch(r"[A-HJ-NPR-Z0-9]{17}", self.vin):
             raise BridgeError("INVALID_VIN", 503)
         # Bypass get_stored_overview(), which swallows upstream exceptions.
+        started = time.monotonic()
         raw = await conn.get(f"/connect/v1/vehicles/{self.vin}", params=[("mf", key) for key in MEASUREMENTS])
-        return normalize(raw, datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+        fetched_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        result = normalize(raw, fetched_at)
+        # Optional statistics must not break an otherwise successful vehicle refresh.
+        # Keep headroom inside the existing 30-second overall timeout.
+        budget = min(6.0, max(0.0, 25.0 - (time.monotonic() - started)))
+        try:
+            if budget <= 0:
+                raise TimeoutError
+            async with asyncio.timeout(budget):
+                trip_raw = await conn.get(f"/connect/v1/vehicles/{self.vin}", params=[("mf", key) for key in TRIP_MEASUREMENTS])
+            result["tripStatistics"] = normalize_trips(trip_raw, fetched_at)
+        except Exception:
+            result["tripStatistics"] = {"status": "error", "fetchedAt": fetched_at,
+                                        "periods": {key: None for key in TRIP_MEASUREMENTS.values()}}
+        return result

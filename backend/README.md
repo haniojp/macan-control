@@ -42,3 +42,7 @@ python3 -m venv .venv
 ```
 
 バックエンドの全テストは模擬通信で、Porscheへの実ネットワーク接続を行わない。固定したSDKバージョン0.2.9で呼出し形式を確認。Porsche上流の変更・契約・地域・クラウドIP制限により実接続が失敗する可能性がある。
+
+## 走行統計
+
+`/api/snapshot` に `tripStatistics` を追加。既存6 measurementの車両情報取得後、短期・長期・充電サイクルの3 measurementを別のGETで取得。オプション通信の失敗・未対応でも車両snapshotを返す。追加通信は最大6秒・既存の全体30秒タイムアウト内。単位と表示・更新手順は [TRIP_STATISTICS.md](../docs/TRIP_STATISTICS.md) を参照。
