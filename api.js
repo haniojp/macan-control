@@ -1,7 +1,8 @@
 'use strict';
-// The bridge key and Porsche tokens are never written to browser storage.
+// Only an explicitly remembered bridge key is stored. Porsche credentials stay on the server.
 (() => {
  const URL_KEY='macan-control-api-url-v1';
+ const CONNECTION_KEY='macan-control-api-connection-v1';
  const messages={
   BRIDGE_AUTH_REQUIRED:'接続キーが一致しません。サーバーのBRIDGE_ACCESS_KEYを確認してください。',
   AUTH_REQUIRED:'Porscheの認証が完了しませんでした。サーバーのPorsche ID設定を確認してください。追加認証や非対応の認証方式が原因の場合もあります。',
@@ -17,11 +18,26 @@
   PORSCHE_UNAVAILABLE:'Porscheとの通信に失敗しました。最後に取得した値を表示しています。',
   PORSCHE_TIMEOUT:'Porscheからの応答がありません。最後に取得した値を表示しています。'
  };
- let endpoint='', key='', timer=null, controller=null, generation=0, busy=false, lastSignature='', tripStatistics=null, tripStale=false;
+ let endpoint='', key='', timer=null, controller=null, generation=0, busy=false, lastSignature='', tripStatistics=null, tripStale=false, hasSavedConnection=false;
  try { $('apiUrl').value=localStorage.getItem(URL_KEY)||''; } catch {}
  const status=text=>$('apiMessage').textContent=text;
  function schedule(){clearTimeout(timer);if(key)timer=setTimeout(()=>{if(!document.hidden)refresh();else schedule();},300000);}
- function controls(){ $('apiConnect').disabled=busy;$('apiRefresh').disabled=busy||!key;$('apiDisconnect').disabled=!key; }
+ function controls(){ $('apiConnect').disabled=busy;$('apiRefresh').disabled=busy||!key;$('apiDisconnect').disabled=!key;$('apiForget').disabled=!hasSavedConnection; }
+ function serverOrigin(value){
+  const url=new URL(value);
+  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.pathname!=='/'&&url.pathname!==''))throw Error('接続先はhttps://で始まるサーバーURLを入力してください。パスやクエリは不要です。');
+  return url.origin;
+ }
+ function removeSavedConnection(){
+  try{localStorage.removeItem(CONNECTION_KEY);hasSavedConnection=false;$('apiRemember').checked=false;$('apiRememberMessage').textContent='接続キーはこの端末に保存されていません。';controls();return true;}
+  catch{$('apiRememberMessage').textContent='保存した接続キーを削除できません。Safariのこのサイトのデータを削除してください。履歴のJSONバックアップを先に保存してください。';return false;}
+ }
+ function saveConnection(){
+  if(!$('apiRemember').checked||!endpoint||!key)return;
+  try{localStorage.setItem(CONNECTION_KEY,JSON.stringify({url:endpoint,key}));hasSavedConnection=true;$('apiRememberMessage').textContent='この端末に接続キーを保存しました。次回から自動接続します。';controls();}
+  catch{$('apiRememberMessage').textContent='この端末に接続キーを保存できませんでした。今回は接続できますが、次回は再入力が必要です。';}
+ }
+ function forgetAndDisconnect(){removeSavedConnection();disconnect();}
  function renderTrips(){
   const selected=$('tripPeriod').value;
   const row=tripStatistics?.periods?.[selected];
@@ -55,7 +71,7 @@
    }catch(err){warning='\n取得できましたが、履歴の保存に失敗しました：'+err.message;}
   }
   tripStale=false;tripStatistics=data.tripStatistics&&typeof data.tripStatistics==='object'&&!Array.isArray(data.tripStatistics)?data.tripStatistics:null;renderTrips();
-  render();$('connectionStatus').textContent='API接続中';
+  saveConnection();render();$('connectionStatus').textContent='API接続中';
   const old=data.vehicleTimestamp&&Date.now()-Date.parse(data.vehicleTimestamp)>30*60*1000;
   status('取得しました。画面を開いている間、5分ごとに更新します。'+(old?'\n車両データは30分以上前の値です。':!data.vehicleTimestamp?'\n車両の測定時刻は不明です。現在値とは限りません。':'')+warning);
   $('captchaForm').hidden=true;$('captchaImage').removeAttribute('src');$('captchaCode').value='';
@@ -70,6 +86,7 @@
    const data=await response.json();if(current!==generation)return;
    if(!response.ok){
     const code=data.code||data.detail?.code;
+    if(code==='BRIDGE_AUTH_REQUIRED')removeSavedConnection();
     if(code==='CAPTCHA_REQUIRED'&&typeof data.captchaImage==='string'&&data.captchaImage.length<=512000&&/^data:image\/(png;base64,|jpeg;base64,|svg\+xml)/.test(data.captchaImage)){$('captchaImage').src=data.captchaImage;$('captchaForm').hidden=false;}
     retry=!['CAPTCHA_REQUIRED','AUTH_REQUIRED','BRIDGE_AUTH_REQUIRED','SELECT_VEHICLE','INVALID_VIN'].includes(code);
     $('connectionStatus').textContent='API取得停止';throw Error(messages[code]||'サーバーの応答を確認できません。接続先の設定を確認してください。');
@@ -81,17 +98,31 @@
  $('apiForm').addEventListener('submit',event=>{
   event.preventDefault();
   try{
-   const url=new URL($('apiUrl').value.trim());
-   if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.pathname!=='/'&&url.pathname!==''))throw Error('接続先はhttps://で始まるサーバーURLを入力してください。パスやクエリは不要です。');
+   const origin=serverOrigin($('apiUrl').value.trim());
    const nextKey=$('apiKey').value.trim();if(nextKey.length<32)throw Error('接続キーはサーバーに表示された32文字以上の値を入力してください。');
-   disconnect();endpoint=url.origin;key=nextKey;lastSignature='';$('apiKey').value='';
+   // Remove a previously remembered connection before changing server or key.
+   const remember=$('apiRemember').checked;
+   if(hasSavedConnection&&!removeSavedConnection())return;
+   $('apiRemember').checked=remember;
+   disconnect();endpoint=origin;key=nextKey;lastSignature='';$('apiKey').value='';
    try{localStorage.setItem(URL_KEY,endpoint);}catch{}
    controls();refresh();
   }catch(err){status(err.message);}
  });
  $('apiRefresh').addEventListener('click',()=>refresh());
- $('apiDisconnect').addEventListener('click',disconnect);
+ $('apiDisconnect').addEventListener('click',forgetAndDisconnect);
+ $('apiForget').addEventListener('click',forgetAndDisconnect);
+ $('apiRemember').addEventListener('change',()=>{if($('apiRemember').checked)saveConnection();else removeSavedConnection();});
  $('captchaForm').addEventListener('submit',event=>{event.preventDefault();refresh($('captchaCode').value.trim());});
- window.addEventListener('macan:clear',disconnect);
+ window.addEventListener('macan:clear',forgetAndDisconnect);
  document.addEventListener('visibilitychange',()=>{if(key&&!document.hidden&&!busy&&$('captchaForm').hidden)refresh();});
+ // Restore the URL and key as one record: never send a saved key to an edited URL.
+ try{
+  const saved=JSON.parse(localStorage.getItem(CONNECTION_KEY)||'null');
+  if(saved&&typeof saved.url==='string'&&typeof saved.key==='string'&&saved.key.length>=32){
+   endpoint=serverOrigin(saved.url);key=saved.key;hasSavedConnection=true;
+   $('apiUrl').value=endpoint;$('apiRemember').checked=true;
+   $('apiRememberMessage').textContent='保存した接続キーで自動接続します。';controls();refresh();
+  }
+ }catch{removeSavedConnection();}
 })();

@@ -11,7 +11,7 @@
 - `ALLOWED_ORIGIN`：許可するHTTPSオリジンを1つ指定（例 `https://haniojp.github.io`、パス・末尾スラッシュなし）
 - `PORSCHE_VIN`：省略可能。1台なら一覧から選択、複数ならサーバー側で明示
 
-認証トークン、PKCE verifier、CAPTCHA stateはプロセスメモリのみ。Porsche資格情報を画面・localStorage・GitHub・Pagesに含めない。Bearerキーも画面メモリのみで、リロード後は再入力。別オリジンのCookieやSafariの第三者Cookieに依存しない。CORSだけを認証の代わりにはしない。
+認証トークン、PKCE verifier、CAPTCHA stateはプロセスメモリのみ。Porsche資格情報を画面・localStorage・GitHub・Pagesに含めない。Bearerキーは通常は画面メモリのみ。利用者が明示的に保存を選んだ場合に限り、接続先URLと一緒にlocalStorageへ保存し、再起動時に同じ接続先へ自動接続する。Porsche資格情報・OAuthトークンの扱いは従来どおりサーバー内のみ。別オリジンのCookieやSafariの第三者Cookieに依存しない。CORSだけを認証の代わりにはしない。
 
 ```sh
 python3 -m venv .venv
