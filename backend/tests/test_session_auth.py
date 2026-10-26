@@ -72,6 +72,9 @@ def test_csrf_missing_origin_and_cross_origin_requests_are_denied():
         assert client.post('/auth/logout',headers={'Origin':'https://haniojp.github.io'}).status_code==403
         assert client.get('/api/snapshot',headers={'Origin':'https://evil.invalid'}).status_code==403
         assert client.get('/api/snapshot',headers={'Origin':'https://haniojp.github.io'}).json()['code']=='APP_LOGIN_REQUIRED'
+        preflight=client.options('/api/snapshot',headers={'Origin':'https://haniojp.github.io','Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'authorization'})
+        assert preflight.status_code==204 and preflight.headers['access-control-allow-origin']=='https://haniojp.github.io'
+        assert 'access-control-allow-credentials' not in preflight.headers
 
 
 def test_login_validation_never_echoes_password_and_rate_limit():

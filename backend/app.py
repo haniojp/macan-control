@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -76,8 +76,10 @@ def create_app(settings=None, provider=None):
     async def private_responses(request, call_next):
         # Reject cross-origin callers before any upstream work, including failed requests.
         origin = request.headers.get("origin")
-        if auth and origin==settings.allowed_origin and request.url.path=='/api/snapshot' and request.method=='GET':
-            return JSONResponse({'code':'APP_LOGIN_REQUIRED'},status_code=401,headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':origin})
+        if auth and origin==settings.allowed_origin and origin!=trusted_origin and request.url.path=='/api/snapshot':
+            migration_headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET','Access-Control-Allow-Headers':'Authorization, Content-Type'}
+            if request.method=='OPTIONS':return Response(status_code=204,headers=migration_headers)
+            if request.method=='GET':return JSONResponse({'code':'APP_LOGIN_REQUIRED'},status_code=401,headers=migration_headers)
         if origin and origin != trusted_origin:
             return JSONResponse({"code": "ORIGIN_DENIED"}, status_code=403, headers={"Cache-Control": "no-store"})
         if auth and request.method not in ('GET','HEAD','OPTIONS') and origin!=trusted_origin:
@@ -91,6 +93,7 @@ def create_app(settings=None, provider=None):
         if auth:
             response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
             response.headers['X-Frame-Options']='DENY'
+            response.headers['Strict-Transport-Security']='max-age=31536000'
         return response
 
     async def authorize(request: Request):

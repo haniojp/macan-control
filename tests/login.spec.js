@@ -28,3 +28,7 @@ test('wrong passwords are explained, and remember can be disabled',async({page,c
  const cookie=(await context.cookies()).find(c=>c.name==='__Host-macan-session');expect(cookie.expires).toBe(-1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+test('real server gives old Pages app a login link through CORS preflight without granting API access',async({page})=>{
+ await page.goto('./');await page.locator('#apiUrl').fill(URL);await page.locator('#apiKey').fill('test-bridge-key-'+('x'.repeat(40)));await page.locator('#apiConnect').click();await expect(page.locator('#appLoginLink')).toBeVisible();await expect(page.locator('#appLoginLink')).toHaveAttribute('href',URL+'/');await expect(page.locator('#soc')).toHaveText('—');
+});
