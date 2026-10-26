@@ -11,6 +11,7 @@ test('vehicle entry, persistence, CSV and JSON round trip',async({page})=>{
  await page.evaluate(()=>localStorage.clear());await page.reload();await page.locator('#import').setInputFiles({name:'vehicle.json',mimeType:'application/json',buffer:Buffer.from(json)});await expect(page.locator('#soc')).toHaveText('78%');
 });
 test('maintenance create, edit, backup, restore and delete',async({page})=>{
+ await page.locator('#openMaintenance').click();
  const form=page.locator('#maintenanceForm');await form.locator('[name=date]').fill('2026-10-24');await form.locator('[name=part]').fill('ワイパー "A", B');await form.locator('[name=costYen]').fill('5000');await form.locator('[name=notes]').fill('=1+1\n交換完了');await page.locator('#maintenanceSubmit').click();
  await expect(page.locator('.maintenance-card')).toHaveCount(1);await page.reload();
  await page.getByRole('button',{name:'編集',exact:true}).click();await form.locator('[name=costYen]').fill('6000');await page.locator('#maintenanceSubmit').click();await expect(page.locator('.maintenance-card')).toContainText('6,000 円');
@@ -19,7 +20,7 @@ test('maintenance create, edit, backup, restore and delete',async({page})=>{
  page.on('dialog',d=>d.accept());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.locator('.maintenance-card')).toHaveCount(0);
  await page.locator('#maintenanceImport').setInputFiles({name:'maintenance.json',mimeType:'application/json',buffer:Buffer.from(json)});await expect(page.locator('.maintenance-card')).toHaveCount(1);
  await page.locator('#maintenanceImport').setInputFiles({name:'maintenance.json',mimeType:'application/json',buffer:Buffer.from(json)});await expect(page.locator('.maintenance-card')).toHaveCount(1);
- await page.getByRole('button',{name:'編集',exact:true}).click();await page.locator('#clear').click();await expect(page.locator('.maintenance-card')).toHaveCount(0);await expect(page.locator('#maintenanceCancel')).toBeHidden();
+ await page.getByRole('button',{name:'編集',exact:true}).click();await page.locator('#backToVehicle').click();await page.locator('#clear').click();await expect(page.locator('.maintenance-card')).toHaveCount(0);await expect(page.locator('#maintenanceCancel')).toBeHidden();
 });
 test('invalid JSON is atomic and storage failures are visible',async({page})=>{
  await page.locator('#sample').click();
@@ -39,10 +40,22 @@ test('offline reload under GitHub Pages subpath',async({page,context,browserName
  await page.locator('#sample').click();await context.setOffline(true);await page.reload();await expect(page.locator('#soc')).toHaveText('78%');
 });
 test('maintenance fallback ID, validation and cancel preserve records',async({page})=>{
+ await page.locator('#openMaintenance').click();
  await page.evaluate(()=>Object.defineProperty(crypto,'randomUUID',{value:undefined,configurable:true}));
  const form=page.locator('#maintenanceForm');await form.locator('[name=date]').fill('2026-10-24');await page.locator('#maintenanceSubmit').click();await expect(page.locator('.maintenance-card')).toHaveCount(1);
  const raw=await page.evaluate(()=>JSON.parse(localStorage.getItem('macan-control-maintenance-v1')));expect(raw[0].id).toMatch(/^[a-f0-9]{32}$/);
  await page.locator('#maintenanceImport').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify([{date:'2026-02-30',category:'ワイパー交換'}]))});await expect(page.locator('#maintenanceMessage')).toContainText('取込失敗');await expect(page.locator('.maintenance-card')).toHaveCount(1);
  await page.getByRole('button',{name:'編集',exact:true}).click();await form.locator('[name=part]').fill('キャンセルされる変更');await page.locator('#maintenanceCancel').click();await expect(page.locator('.maintenance-card')).not.toContainText('キャンセルされる変更');
  page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.locator('.maintenance-card')).toHaveCount(1);
+});
+
+test('maintenance has a dedicated view with Back, drafts and reload support',async({page})=>{
+ await expect(page.locator('#maintenanceForm')).toBeHidden();await expect(page.locator('#maintenanceList')).toBeHidden();await expect(page.locator('#openMaintenance')).toBeVisible();
+ await page.locator('#openMaintenance').click();await expect(page).toHaveURL(/#maintenance$/);await expect(page.locator('#maintenanceForm')).toBeVisible();await expect(page.locator('.hero')).toBeHidden();await expect(page.locator('#homeTools')).toBeHidden();
+ await expect(page.locator('#maintenanceTitle')).toBeFocused();await page.locator('#maintenanceForm [name=part]').fill('下書きのワイパー');
+ await page.locator('#backToVehicle').click();await expect(page.locator('.hero')).toBeVisible();await expect(page.locator('#maintenanceForm')).toBeHidden();await expect(page.locator('#openMaintenance')).toBeFocused();
+ await page.locator('#openMaintenance').click();await expect(page.locator('#maintenanceForm [name=part]')).toHaveValue('下書きのワイパー');
+ await page.reload();await expect(page.locator('#maintenanceForm')).toBeVisible();await expect(page).toHaveTitle('メンテナンス記録 — Macan Control');
+ await page.locator('#backToVehicle').click();await page.locator('#openMaintenance').click();await page.goBack();await expect(page.locator('#maintenanceForm')).toBeHidden();await page.goForward();await expect(page.locator('#maintenanceForm')).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
