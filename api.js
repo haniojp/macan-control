@@ -1,6 +1,7 @@
 'use strict';
 // Only an explicitly remembered bridge key is stored. Porsche credentials stay on the server.
 (() => {
+ const sessionMode=document.documentElement.hasAttribute('data-session-app');
  const URL_KEY='macan-control-api-url-v1';
  const CONNECTION_KEY='macan-control-api-connection-v1';
  const messages={
@@ -33,6 +34,7 @@
   catch{$('apiRememberMessage').textContent='保存した接続キーを削除できません。Safariのこのサイトのデータを削除してください。履歴のJSONバックアップを先に保存してください。';return false;}
  }
  function saveConnection(){
+  if(sessionMode)return;
   if(!$('apiRemember').checked||!endpoint||!key)return;
   try{localStorage.setItem(CONNECTION_KEY,JSON.stringify({url:endpoint,key}));hasSavedConnection=true;$('apiRememberMessage').textContent='この端末に接続キーを保存しました。次回から自動接続します。';controls();}
   catch{$('apiRememberMessage').textContent='この端末に接続キーを保存できませんでした。今回は接続できますが、次回は再入力が必要です。';}
@@ -82,10 +84,16 @@
   const current=generation;busy=true;controls();clearTimeout(timer);status('車両情報を取得しています。初回のサーバー起動には時間がかかる場合があります。');
   controller=new AbortController();const timeout=setTimeout(()=>controller?.abort(),90000);let retry=true;
   try {
-   const response=await fetch(endpoint+(captcha?'/api/auth/captcha':'/api/snapshot'),{method:captcha?'POST':'GET',headers:{Authorization:'Bearer '+key,...(captcha?{'Content-Type':'application/json'}:{})},...(captcha?{body:JSON.stringify({code:captcha})}:{}),mode:'cors',credentials:'omit',cache:'no-store',redirect:'error',signal:controller.signal});
+   const response=await fetch(endpoint+(captcha?'/api/auth/captcha':'/api/snapshot'),{method:captcha?'POST':'GET',headers:{...(!sessionMode?{Authorization:'Bearer '+key}:{}),...(captcha?{'Content-Type':'application/json'}:{})},...(captcha?{body:JSON.stringify({code:captcha})}:{}),mode:'cors',credentials:sessionMode?'same-origin':'omit',cache:'no-store',redirect:'error',signal:controller.signal});
    const data=await response.json();if(current!==generation)return;
    if(!response.ok){
     const code=data.code||data.detail?.code;
+    if(code==='APP_LOGIN_REQUIRED'){
+     retry=false;
+     if(sessionMode){document.querySelector('main').hidden=true;location.replace('/login');return;}
+     const link=$('appLoginLink');link.href=endpoint+'/';link.hidden=false;
+     throw Error('ログイン方式に切り替わりました。下の「ログイン用アプリを開く」を押してください。');
+    }
     if(code==='BRIDGE_AUTH_REQUIRED')removeSavedConnection();
     if(code==='CAPTCHA_REQUIRED'&&typeof data.captchaImage==='string'&&data.captchaImage.length<=512000&&/^data:image\/(png;base64,|jpeg;base64,|svg\+xml)/.test(data.captchaImage)){$('captchaImage').src=data.captchaImage;$('captchaForm').hidden=false;}
     retry=!['CAPTCHA_REQUIRED','AUTH_REQUIRED','BRIDGE_AUTH_REQUIRED','SELECT_VEHICLE','INVALID_VIN'].includes(code);
@@ -114,8 +122,9 @@
  $('apiForget').addEventListener('click',forgetAndDisconnect);
  $('apiRemember').addEventListener('change',()=>{if($('apiRemember').checked)saveConnection();else removeSavedConnection();});
  $('captchaForm').addEventListener('submit',event=>{event.preventDefault();refresh($('captchaCode').value.trim());});
- window.addEventListener('macan:clear',forgetAndDisconnect);
+ window.addEventListener('macan:clear',()=>{if(!sessionMode)forgetAndDisconnect();else{lastSignature='';liveSnapshot=null;tripStatistics=null;renderTrips();}});
  document.addEventListener('visibilitychange',()=>{if(key&&!document.hidden&&!busy&&$('captchaForm').hidden)refresh();});
+ if(sessionMode){endpoint=location.origin;key='session';controls();refresh();return;}
  // Restore the URL and key as one record: never send a saved key to an edited URL.
  try{
   const saved=JSON.parse(localStorage.getItem(CONNECTION_KEY)||'null');

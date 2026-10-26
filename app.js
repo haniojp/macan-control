@@ -30,7 +30,7 @@ $('export').addEventListener('click',()=>{
 });
 $('vehicleBackup').addEventListener('click',()=>downloadFile('macan-vehicle.json','application/json;charset=utf-8',JSON.stringify(getRecords(),null,2)));
 $('clear').addEventListener('click',()=>{if(confirm('車両データとメンテナンス履歴をすべて削除します。元には戻せません。実行しますか？')){try{localStorage.removeItem(KEY);localStorage.removeItem(MAINTENANCE_KEY);$('message').textContent='全記録を削除しました';liveSnapshot=null;window.dispatchEvent(new Event('macan:clear'));resetMaintenanceForm();render();renderMaintenance()}catch(err){$('message').textContent='削除失敗：'+err.message}}});
-if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{$('installMessage').textContent='オフライン機能を準備できませんでした。通信状態を確認して再読み込みしてください。'});
+if(!document.documentElement.hasAttribute('data-session-app')&&'serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{$('installMessage').textContent='オフライン機能を準備できませんでした。通信状態を確認して再読み込みしてください。'});
 render();
 
 

@@ -105,3 +105,8 @@ test('storage failures are visible and clearing all data also removes remembered
  await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(name,value){if(name==='macan-control-api-connection-v1')throw new DOMException('full','QuotaExceededError');return original.call(this,name,value);};});
  await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');await expect(page.locator('#apiRememberMessage')).toContainText('保存できませんでした');
 });
+
+test('legacy Pages mode explains login migration instead of retrying a saved API key',async({page})=>{
+ await mock(page,async()=>({status:401,body:{code:'APP_LOGIN_REQUIRED'}}));
+ await connect(page);await expect(page.locator('#apiMessage')).toContainText('ログイン方式に切り替わりました');await expect(page.locator('#appLoginLink')).toBeVisible();await expect(page.locator('#appLoginLink')).toHaveAttribute('href',servers.get(page).url+'/');
+});
