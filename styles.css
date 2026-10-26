@@ -6,3 +6,5 @@ select,textarea{display:block;margin-top:6px;width:100%;padding:12px;background:
 #apiForm{margin-bottom:12px}#captchaImage{max-width:100%;max-height:180px;background:white;border-radius:8px}button:disabled{opacity:.5;cursor:default}#updated,#apiMessage{overflow-wrap:anywhere}#apiMessage{white-space:pre-line}
 
 form .remember-option{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px}input[type=checkbox]{display:inline-block;width:20px;height:20px;min-height:0;margin:0;padding:0;flex-shrink:0;accent-color:#9ac6ee}#apiRememberMessage{overflow-wrap:anywhere}
+
+.maintenance-entry{margin:0 0 16px}.maintenance-entry button{width:100%;font-size:16px}.maintenance-heading{margin-top:20px}#maintenanceTitle:focus{outline:2px solid #9ac6ee;outline-offset:4px}

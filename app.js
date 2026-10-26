@@ -86,3 +86,15 @@ $('maintenanceExport').addEventListener('click',()=>{const cols=['date','categor
 $('maintenanceBackup').addEventListener('click',()=>downloadFile('macan-maintenance.json','application/json;charset=utf-8',JSON.stringify(maintenanceRows(),null,2)));
 $('maintenanceImport').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>1024*1024)throw Error('1MB以下のJSONを指定してください');const parsed=JSON.parse(await file.text());if(!Array.isArray(parsed)||parsed.length>1000)throw Error('1000件以下のJSON配列を指定してください');const incoming=parsed.map(maintenanceValidate),map=new Map(maintenanceRows().map(x=>[x.id,x]));incoming.forEach(x=>map.set(x.id,x));saveMaintenance([...map.values()]);resetMaintenanceForm();renderMaintenance();$('maintenanceMessage').textContent=incoming.length+'件の整備記録を取り込みました（同じIDは更新）。'}catch(err){$('maintenanceMessage').textContent='取込失敗：'+err.message}e.target.value=''});
 resetMaintenanceForm();renderMaintenance();
+
+// Keep maintenance on a dedicated view while preserving drafts and browser Back.
+function showMaintenanceView(focus=false){
+ const active=location.hash==='#maintenance';
+ $('homeView').hidden=active;$('homeTools').hidden=active;$('maintenance').hidden=!active;
+ document.title=active?'メンテナンス記録 — Macan Control':'Macan Control';
+ if(focus){window.scrollTo(0,0);$(active?'maintenanceTitle':'openMaintenance').focus({preventScroll:true});}
+}
+$('openMaintenance').addEventListener('click',()=>{location.hash='maintenance';});
+$('backToVehicle').addEventListener('click',()=>{location.hash='';});
+window.addEventListener('hashchange',()=>showMaintenanceView(true));
+showMaintenanceView();

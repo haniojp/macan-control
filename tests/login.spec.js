@@ -32,3 +32,9 @@ test('wrong passwords are explained, and remember can be disabled',async({page,c
 test('real server gives old Pages app a login link through CORS preflight without granting API access',async({page})=>{
  await page.goto('./');await page.locator('#apiUrl').fill(URL);await page.locator('#apiKey').fill('test-bridge-key-'+('x'.repeat(40)));await page.locator('#apiConnect').click();await expect(page.locator('#appLoginLink')).toBeVisible();await expect(page.locator('#appLoginLink')).toHaveAttribute('href',URL+'/');await expect(page.locator('#soc')).toHaveText('—');
 });
+
+test('logged-in app opens maintenance without losing session or saved records',async({page})=>{
+ await login(page);await expect(page.locator('#maintenanceForm')).toBeHidden();await page.locator('#openMaintenance').click();await expect(page.locator('#maintenanceForm')).toBeVisible();await expect(page.locator('#apiConnection')).toBeHidden();
+ await page.locator('#maintenanceForm [name=date]').fill('2026-10-26');await page.locator('#maintenanceForm [name=part]').fill('交換済みワイパー');await page.locator('#maintenanceSubmit').click();await expect(page.locator('.maintenance-card')).toContainText('交換済みワイパー');
+ await page.reload();await expect(page.locator('.maintenance-card')).toContainText('交換済みワイパー');await page.locator('#backToVehicle').click();await expect(page.locator('#soc')).toHaveText('64%');await expect(page.locator('#appLogout')).toBeVisible();
+});
