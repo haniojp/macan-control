@@ -46,3 +46,7 @@ python3 -m venv .venv
 ## 走行統計
 
 `/api/snapshot` に `tripStatistics` を追加。既存6 measurementの車両情報取得後、短期・長期・充電サイクルの3 measurementを別のGETで取得。オプション通信の失敗・未対応でも車両snapshotを返す。追加通信は最大6秒・既存の全体30秒タイムアウト内。単位と表示・更新手順は [TRIP_STATISTICS.md](../docs/TRIP_STATISTICS.md) を参照。
+
+## 同一オリジンのログインモード
+
+APP_LOGIN_PASSWORD（12文字以上）とAPP_ORIGIN（RenderのHTTPSオリジン）を設定すると、Renderの `/` がログイン必須アプリになる。詳細は [APP_LOGIN.md](../docs/APP_LOGIN.md)。このモードではBearerキーを受け付けず、HttpOnly署名Cookieのみで認証。DBを追加せずに再起動をまたいで30日保持できる。元のGitHub PagesのlocalStorageは移動しないため、JSONで移行する。

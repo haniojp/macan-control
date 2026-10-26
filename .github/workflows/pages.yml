@@ -15,6 +15,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements-test.txt
       - run: npm ci
       - run: npx playwright install --with-deps webkit chromium
       - run: npm test
@@ -48,7 +52,7 @@ jobs:
       - name: Prepare static files
         run: |
           mkdir _site
-          cp index.html app.js api.js styles.css sw.js manifest.webmanifest sample-snapshot.json _site/
+          cp index.html app.js api.js session.js styles.css sw.js manifest.webmanifest sample-snapshot.json _site/
           cp -r icons _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3

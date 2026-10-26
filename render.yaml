@@ -21,3 +21,6 @@ services:
         sync: false
       - key: PORSCHE_VIN
         value: ""
+
+# Optional login mode: manually add APP_LOGIN_PASSWORD and APP_ORIGIN in Render.
+# See docs/APP_LOGIN.md. Keep credentials out of this public file.
