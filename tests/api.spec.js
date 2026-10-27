@@ -32,7 +32,7 @@ test.beforeEach(async({page})=>{await page.goto('./');});
 test('API displays vehicle data, polls, and keeps secrets out of backups and storage',async({page})=>{
  let calls=0;await page.clock.install();
  await mock(page,async request=>{expect(request.headers().authorization).toBe('Bearer '+KEY);calls++;return {body:response()};});
- await page.locator('#sample').click();await connect(page);
+ await page.locator('#openDataEntry').click();await page.locator('#sample').click();await page.locator('#backFromData').click();await connect(page);
  await expect(page.locator('#soc')).toHaveText('64%');await expect(page.locator('#charging')).toHaveText('充電中');await expect(page.locator('#updated')).toContainText('車両データ日時');await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
  await expect(page.locator('#apiKey')).toHaveValue('');expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain(KEY);
  await page.clock.fastForward(300001);await expect.poll(()=>calls).toBe(2);await expect(page.locator('#history tr')).toHaveCount(2);

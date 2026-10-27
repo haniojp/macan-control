@@ -1,7 +1,7 @@
 'use strict';
 // Limit cleanup to this app: other GitHub Pages projects share the origin.
 const PREFIX='macan-control-';
-const CACHE=PREFIX+'v8';
+const CACHE=PREFIX+'v9';
 const FILES=['./','./index.html','./styles.css','./app.js','./session.js','./api.js','./manifest.webmanifest','./icons/apple-touch-icon.png','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

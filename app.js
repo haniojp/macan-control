@@ -87,14 +87,22 @@ $('maintenanceBackup').addEventListener('click',()=>downloadFile('macan-maintena
 $('maintenanceImport').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>1024*1024)throw Error('1MB以下のJSONを指定してください');const parsed=JSON.parse(await file.text());if(!Array.isArray(parsed)||parsed.length>1000)throw Error('1000件以下のJSON配列を指定してください');const incoming=parsed.map(maintenanceValidate),map=new Map(maintenanceRows().map(x=>[x.id,x]));incoming.forEach(x=>map.set(x.id,x));saveMaintenance([...map.values()]);resetMaintenanceForm();renderMaintenance();$('maintenanceMessage').textContent=incoming.length+'件の整備記録を取り込みました（同じIDは更新）。'}catch(err){$('maintenanceMessage').textContent='取込失敗：'+err.message}e.target.value=''});
 resetMaintenanceForm();renderMaintenance();
 
-// Keep maintenance on a dedicated view while preserving drafts and browser Back.
-function showMaintenanceView(focus=false){
- const active=location.hash==='#maintenance';
- $('homeView').hidden=active;$('homeTools').hidden=active;$('maintenance').hidden=!active;
- document.title=active?'メンテナンス記録 — Macan Control':'Macan Control';
- if(focus){window.scrollTo(0,0);$(active?'maintenanceTitle':'openMaintenance').focus({preventScroll:true});}
+// Dedicated screens share the saved data and keep drafts while navigating.
+let previousScreen='';
+function showAppView(focus=false){
+ const screen=location.hash==='#maintenance'?'maintenance':location.hash==='#data'?'data':'';
+ const home=screen==='';
+ $('homeView').hidden=!home;$('homeTools').hidden=!home;
+ $('maintenance').hidden=screen!=='maintenance';$('dataEntry').hidden=screen!=='data';
+ document.title=screen==='maintenance'?'メンテナンス記録 — Macan Control':screen==='data'?'データ追加 — Macan Control':'Macan Control';
+ if(focus){
+  const target=screen==='maintenance'?'maintenanceTitle':screen==='data'?'dataEntryTitle':previousScreen==='data'?'openDataEntry':'openMaintenance';
+  window.scrollTo(0,0);$(target).focus({preventScroll:true});
+ }
+ previousScreen=screen;
 }
 $('openMaintenance').addEventListener('click',()=>{location.hash='maintenance';});
-$('backToVehicle').addEventListener('click',()=>{location.hash='';});
-window.addEventListener('hashchange',()=>showMaintenanceView(true));
-showMaintenanceView();
+$('openDataEntry').addEventListener('click',()=>{location.hash='data';});
+for(const id of ['backToVehicle','backFromData'])$(id).addEventListener('click',()=>{location.hash='';});
+window.addEventListener('hashchange',()=>showAppView(true));
+showAppView();
