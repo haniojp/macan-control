@@ -38,3 +38,10 @@ test('logged-in app opens maintenance without losing session or saved records',a
  await page.locator('#maintenanceForm [name=date]').fill('2026-10-26');await page.locator('#maintenanceForm [name=part]').fill('交換済みワイパー');await page.locator('#maintenanceSubmit').click();await expect(page.locator('.maintenance-card')).toContainText('交換済みワイパー');
  await page.reload();await expect(page.locator('.maintenance-card')).toContainText('交換済みワイパー');await page.locator('#backToVehicle').click();await expect(page.locator('#soc')).toHaveText('64%');await expect(page.locator('#appLogout')).toBeVisible();
 });
+
+test('logged-in app adds vehicle data on its own screen and preserves the session',async({page})=>{
+ await login(page);await expect(page.locator('#manual')).toBeHidden();await page.locator('#openDataEntry').click();await expect(page.locator('#manual')).toBeVisible();await expect(page.locator('#apiConnection')).toBeHidden();
+ await page.locator('#manual [name=soc]').fill('75');await page.locator('#manual [name=chargingStatus]').fill('手入力で確認');await page.locator('#manual button').click();await expect(page.locator('#message')).toContainText('記録を保存しました');
+ await page.locator('#backFromData').click();await expect(page.locator('#appLogout')).toBeVisible();const records=await page.evaluate(()=>JSON.parse(localStorage.getItem('macan-control-records-v1')));expect(records.some(r=>r.source==='manual'&&r.soc===75)).toBe(true);
+ await page.reload();await expect(page.locator('#appLogout')).toBeVisible();await expect(page.locator('#openDataEntry')).toBeVisible();
+});
