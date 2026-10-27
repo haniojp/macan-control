@@ -29,8 +29,8 @@ $('export').addEventListener('click',()=>{
  downloadFile('macan-control-history.csv','text/csv;charset=utf-8','\ufeff'+csv);
 });
 $('vehicleBackup').addEventListener('click',()=>downloadFile('macan-vehicle.json','application/json;charset=utf-8',JSON.stringify(getRecords(),null,2)));
-$('clear').addEventListener('click',()=>{if(confirm('車両データとメンテナンス履歴をすべて削除します。元には戻せません。実行しますか？')){try{localStorage.removeItem(KEY);localStorage.removeItem(MAINTENANCE_KEY);$('message').textContent='全記録を削除しました';liveSnapshot=null;window.dispatchEvent(new Event('macan:clear'));resetMaintenanceForm();render();renderMaintenance()}catch(err){$('message').textContent='削除失敗：'+err.message}}});
-if(!document.documentElement.hasAttribute('data-session-app')&&'serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{$('installMessage').textContent='オフライン機能を準備できませんでした。通信状態を確認して再読み込みしてください。'});
+$('clear').addEventListener('click',()=>{if(confirm('車両データとメンテナンス履歴をすべて削除します。元には戻せません。実行しますか？')){try{localStorage.removeItem(KEY);localStorage.removeItem(MAINTENANCE_KEY);$('message').textContent='全記録を削除しました';$('maintenanceMessage').textContent='車両情報とメンテナンス記録をすべて削除しました。';liveSnapshot=null;window.dispatchEvent(new Event('macan:clear'));resetMaintenanceForm();render();renderMaintenance()}catch(err){$('maintenanceMessage').textContent='削除失敗：'+err.message}}});
+if(!document.documentElement.hasAttribute('data-session-app')&&'serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{$('message').textContent='オフライン機能を準備できませんでした。通信状態を確認して再読み込みしてください。'});
 render();
 
 
@@ -92,7 +92,7 @@ let previousScreen='';
 function showAppView(focus=false){
  const screen=location.hash==='#maintenance'?'maintenance':location.hash==='#data'?'data':'';
  const home=screen==='';
- $('homeView').hidden=!home;$('homeTools').hidden=!home;
+ $('homeView').hidden=!home;
  $('maintenance').hidden=screen!=='maintenance';$('dataEntry').hidden=screen!=='data';
  document.title=screen==='maintenance'?'メンテナンス記録 — Macan Control':screen==='data'?'データ追加 — Macan Control':'Macan Control';
  if(focus){
