@@ -20,7 +20,7 @@ test('maintenance create, edit, backup, restore and delete',async({page})=>{
  page.on('dialog',d=>d.accept());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.locator('.maintenance-card')).toHaveCount(0);
  await page.locator('#maintenanceImport').setInputFiles({name:'maintenance.json',mimeType:'application/json',buffer:Buffer.from(json)});await expect(page.locator('.maintenance-card')).toHaveCount(1);
  await page.locator('#maintenanceImport').setInputFiles({name:'maintenance.json',mimeType:'application/json',buffer:Buffer.from(json)});await expect(page.locator('.maintenance-card')).toHaveCount(1);
- await page.getByRole('button',{name:'編集',exact:true}).click();await page.locator('#backToVehicle').click();await page.locator('#clear').click();await expect(page.locator('.maintenance-card')).toHaveCount(0);await expect(page.locator('#maintenanceCancel')).toBeHidden();
+ await page.getByRole('button',{name:'編集',exact:true}).click();await page.locator('#clear').click();await expect(page.locator('#maintenanceMessage')).toContainText('すべて削除しました');await expect(page.locator('.maintenance-card')).toHaveCount(0);await expect(page.locator('#maintenanceCancel')).toBeHidden();
 });
 test('invalid JSON is atomic and storage failures are visible',async({page})=>{
  await page.locator('#openDataEntry').click();
@@ -33,7 +33,7 @@ test('mobile layout, install assets and runtime errors',async({page,request})=>{
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await expect(page.locator('#maintenanceCancel')).toBeHidden();
  const m=await (await request.get('manifest.webmanifest')).json();expect(m.start_url).toBe('./');for(const icon of m.icons)expect((await request.get(icon.src)).ok()).toBe(true);
- await expect(page.getByRole('heading',{name:'iPhoneのホーム画面に追加'})).toBeVisible();expect(errors).toEqual([]);
+ await expect(page.getByRole('heading',{name:'iPhoneのホーム画面に追加'})).toHaveCount(0);await expect(page.locator('#clear')).toBeHidden();await page.locator('#openMaintenance').click();await expect(page.locator('#maintenance #clear')).toBeVisible();expect(errors).toEqual([]);
 });
 test('offline reload under GitHub Pages subpath',async({page,context,browserName})=>{
  test.skip(browserName!=='chromium','Playwright WebKit does not expose service worker control');
@@ -52,7 +52,7 @@ test('maintenance fallback ID, validation and cancel preserve records',async({pa
 
 test('maintenance has a dedicated view with Back, drafts and reload support',async({page})=>{
  await expect(page.locator('#maintenanceForm')).toBeHidden();await expect(page.locator('#maintenanceList')).toBeHidden();await expect(page.locator('#openMaintenance')).toBeVisible();
- await page.locator('#openMaintenance').click();await expect(page).toHaveURL(/#maintenance$/);await expect(page.locator('#maintenanceForm')).toBeVisible();await expect(page.locator('.hero')).toBeHidden();await expect(page.locator('#homeTools')).toBeHidden();
+ await page.locator('#openMaintenance').click();await expect(page).toHaveURL(/#maintenance$/);await expect(page.locator('#maintenanceForm')).toBeVisible();await expect(page.locator('.hero')).toBeHidden();
  await expect(page.locator('#maintenanceTitle')).toBeFocused();await page.locator('#maintenanceForm [name=part]').fill('下書きのワイパー');
  await page.locator('#backToVehicle').click();await expect(page.locator('.hero')).toBeVisible();await expect(page.locator('#maintenanceForm')).toBeHidden();await expect(page.locator('#openMaintenance')).toBeFocused();
  await page.locator('#openMaintenance').click();await expect(page.locator('#maintenanceForm [name=part]')).toHaveValue('下書きのワイパー');

@@ -101,7 +101,7 @@ test('restored keys stay bound to their stored server and invalid keys are forgo
 
 test('storage failures are visible and clearing all data also removes remembered credentials',async({page})=>{
  await mock(page,async()=>({body:response()}));await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
- page.once('dialog',d=>d.accept());await page.locator('#clear').click();expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');
+ await page.locator('#openMaintenance').click();page.once('dialog',d=>d.accept());await page.locator('#clear').click();await page.locator('#backToVehicle').click();expect(await page.evaluate(()=>localStorage.getItem('macan-control-api-connection-v1'))).toBeNull();await expect(page.locator('#connectionStatus')).toHaveText('API未接続');
  await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(name,value){if(name==='macan-control-api-connection-v1')throw new DOMException('full','QuotaExceededError');return original.call(this,name,value);};});
  await page.locator('#apiRemember').check();await connect(page);await expect(page.locator('#connectionStatus')).toHaveText('API接続中');await expect(page.locator('#apiRememberMessage')).toContainText('保存できませんでした');
 });
