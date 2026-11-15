@@ -20,6 +20,7 @@ logging.getLogger("pyporscheconnectapi").setLevel(logging.CRITICAL + 1)
 logging.getLogger("pyporscheconnectapi").propagate = False
 
 MEASUREMENTS = ("BATTERY_LEVEL", "E_RANGE", "RANGE", "MILEAGE", "CHARGING_SUMMARY", "GLOBAL_TIMESTAMP")
+REQUEST_TIMEOUT_SECONDS = 40
 
 
 class BridgeError(Exception):
@@ -83,6 +84,7 @@ class PorscheProvider:
         self.cached = None
         self.cached_until = 0.0
         self.retry_after = 0.0
+        self.last_error = None
         self.pending_captcha = None
         self.captcha_until = 0.0
 
@@ -103,6 +105,19 @@ class PorscheProvider:
         return None
 
     async def snapshot(self, captcha_code=None):
+        # Bound queueing as well as upstream work; a stuck request must not
+        # leave every later caller waiting indefinitely for the provider lock.
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                return await self._snapshot(captcha_code)
+        except TimeoutError:
+            raise BridgeError("PORSCHE_TIMEOUT", 504) from None
+        except BridgeError as exc:
+            if exc.code not in ("CAPTCHA_REQUIRED", "CAPTCHA_EXPIRED", "RETRY_LATER"):
+                self.last_error = BridgeError(exc.code, exc.status)
+            raise
+
+    async def _snapshot(self, captcha_code=None):
         async with self.lock:
             now = time.monotonic()
             if captcha_code is not None:
@@ -119,12 +134,25 @@ class PorscheProvider:
             elif now < self.cached_until and self.cached:
                 return self.cached
             elif now < self.retry_after:
-                raise BridgeError("RETRY_LATER", 429)
+                # Preserve the actionable failure instead of hiding it behind
+                # RETRY_LATER on every subsequent click.
+                error = self.last_error or BridgeError("RETRY_LATER", 429)
+                raise BridgeError(error.code, error.status)
             try:
                 async with asyncio.timeout(30):
-                    result = await self._fetch()
+                    try:
+                        result = await self._fetch()
+                    except PorscheExceptionError as exc:
+                        # Only retry rejected existing sessions. Wrong passwords,
+                        # rate limits and account locks must not trigger a loop.
+                        token = getattr(self.connection, "token", None)
+                        if getattr(exc, "code", None) not in (400, 401, 403) or not token:
+                            raise
+                        token.clear()
+                        result = await self._fetch()
                 self.cached = result
                 self.cached_until = time.monotonic() + 300
+                self.last_error = None
                 return result
             except PorscheCaptchaRequiredError as exc:
                 image = exc.captcha

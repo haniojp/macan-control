@@ -85,7 +85,7 @@ async def test_errors_are_sanitized_and_retries_back_off(exc,code):
     conn=Connection();conn.fail=exc;p=PorscheProvider('owner','secret',VIN,conn)
     with pytest.raises(BridgeError) as err:await p.snapshot()
     assert err.value.code==code and 'raw-secret' not in str(err.value)
-    with pytest.raises(BridgeError,match='RETRY_LATER'):await p.snapshot()
+    with pytest.raises(BridgeError,match=code):await p.snapshot()
     assert len(conn.calls)==1
 
 
@@ -199,3 +199,84 @@ async def test_installed_sdk_request_contract_with_mock_transport():
     assert result['snapshot']['soc']==78 and len(requests)==3
     assert result['tripStatistics']['status']=='unavailable'
     await provider.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,expired', [(400, True), (401, True), (401, False)])
+async def test_rejected_existing_token_reauthenticates_once(status, expired):
+    import time
+    from pyporscheconnectapi.connection import Connection as SDKConnection
+    calls = {'refresh': 0, 'login': 0, 'vehicle': 0}
+
+    def upstream(request):
+        if request.url.path.endswith('/oauth/token'):
+            calls['refresh'] += 1
+            return httpx.Response(status, json={'error': 'invalid_grant'})
+        calls['vehicle'] += 1
+        if request.headers['authorization'] == 'Bearer rejected-test-token':
+            return httpx.Response(status, json={})
+        return httpx.Response(200, json=payload())
+
+    connection = SDKConnection(async_client=httpx.AsyncClient(transport=httpx.MockTransport(upstream)),
+                               token={'access_token': 'rejected-test-token', 'refresh_token': 'test-refresh',
+                                      'expires_at': int(time.time()) + (-100 if expired else 3600)})
+
+    async def authorization_code():
+        calls['login'] += 1
+        return 'test-code'
+
+    async def access_token(code):
+        return {'access_token': 'new-test-token', 'refresh_token': 'rotated-test-refresh', 'expires_in': 3600}
+
+    connection.oauth2_client.fetch_authorization_code = authorization_code
+    connection.oauth2_client.fetch_access_token = access_token
+    provider = PorscheProvider('test', 'test', VIN, connection)
+    try:
+        result = await provider.snapshot()
+        assert result['snapshot']['soc'] == 78
+        assert calls['login'] == 1
+        assert calls['refresh'] == int(expired)
+        assert connection.token.refresh_token == 'rotated-test-refresh'
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_reauthentication_is_bounded_and_reason_survives_cooldown():
+    conn = Connection()
+    conn.token = {'access_token': 'rejected-test-token'}
+    conn.fail = PorscheExceptionError(401)
+    provider = PorscheProvider('test', 'test', VIN, conn)
+    for _ in range(2):
+        with pytest.raises(BridgeError, match='AUTH_REQUIRED'):
+            await provider.snapshot()
+    assert len(conn.calls) == 2
+    assert conn.token == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status', [423, 429])
+async def test_account_lock_and_rate_limit_never_retry_login(status):
+    conn = Connection()
+    conn.token = {'access_token': 'test-token'}
+    conn.fail = PorscheExceptionError(status)
+    provider = PorscheProvider('test', 'test', VIN, conn)
+    with pytest.raises(BridgeError):
+        await provider.snapshot()
+    assert len(conn.calls) == 1
+    assert conn.token
+
+
+@pytest.mark.asyncio
+async def test_lock_wait_has_deadline_and_does_not_release_another_request(monkeypatch):
+    monkeypatch.setattr('backend.provider.REQUEST_TIMEOUT_SECONDS', 0.01)
+    provider = PorscheProvider('test', 'test', VIN, Connection())
+    await provider.lock.acquire()
+    try:
+        with pytest.raises(BridgeError, match='PORSCHE_TIMEOUT'):
+            await provider.snapshot()
+        assert provider.lock.locked()
+        assert not provider.connection.calls
+    finally:
+        provider.lock.release()
+    assert (await provider.snapshot())['snapshot']['soc'] == 78
