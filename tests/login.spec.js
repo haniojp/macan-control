@@ -45,3 +45,45 @@ test('logged-in app adds vehicle data on its own screen and preserves the sessio
  await page.locator('#backFromData').click();await expect(page.locator('#appLogout')).toBeVisible();const records=await page.evaluate(()=>JSON.parse(localStorage.getItem('macan-control-records-v1')));expect(records.some(r=>r.source==='manual'&&r.soc===75)).toBe(true);
  await page.reload();await expect(page.locator('#appLogout')).toBeVisible();await expect(page.locator('#openDataEntry')).toBeVisible();
 });
+
+for (const stage of ['fetch', 'body']) {
+ test('session refresh releases button after '+stage+' stalls even when abort does not settle it', async({page})=>{
+  await login(page);
+  await page.clock.install();
+  await page.evaluate(stage=>{
+   window.originalFetch=window.fetch;
+   window.fetch=(url,options)=>String(url).endsWith('/api/snapshot')
+    ? stage==='fetch' ? new Promise(()=>{}) : Promise.resolve({ok:true,json:()=>new Promise(()=>{})})
+    : window.originalFetch(url,options);
+  },stage);
+  await page.locator('#apiRefresh').click();
+  await expect(page.locator('#apiRefresh')).toBeDisabled();
+  await page.clock.fastForward(90001);
+  await expect(page.locator('#apiRefresh')).toBeEnabled();
+  await expect(page.locator('#connectionStatus')).toHaveText('APIタイムアウト');
+  await expect(page.locator('#apiMessage')).toContainText('タイムアウト');
+  await page.evaluate(()=>{window.fetch=window.originalFetch;});
+  await page.locator('#apiRefresh').click();
+  await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+  await expect(page.locator('#apiRefresh')).toBeEnabled();
+ });
+}
+
+test('session refresh keeps authentication failure visible and permits manual retry',async({page})=>{
+ await login(page);
+ let calls=0;
+ await page.route(URL+'/api/snapshot',route=>{
+  calls++;
+  return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({code:'AUTH_REQUIRED'})});
+ });
+ await page.clock.install();
+ await page.locator('#apiRefresh').click();
+ await expect(page.locator('#connectionStatus')).toHaveText('API取得停止');
+ await expect(page.locator('#apiMessage')).toContainText('Porscheの認証');
+ await expect(page.locator('#apiRefresh')).toBeEnabled();
+ await page.clock.fastForward(300001);
+ expect(calls).toBe(1);
+ await page.unroute(URL+'/api/snapshot');
+ await page.locator('#apiRefresh').click();
+ await expect(page.locator('#connectionStatus')).toHaveText('API接続中');
+});

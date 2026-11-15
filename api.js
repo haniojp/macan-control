@@ -81,11 +81,14 @@
  async function refresh(captcha){
   if(!key||busy)return;
   if(!navigator.onLine){status('オフラインです。保存済みの記録を表示しています。');$('connectionStatus').textContent='API通信待ち';if(tripStatistics){tripStale=true;renderTrips();}schedule();return;}
-  const current=generation;busy=true;controls();clearTimeout(timer);status('車両情報を取得しています。初回のサーバー起動には時間がかかる場合があります。');
-  controller=new AbortController();const timeout=setTimeout(()=>controller?.abort(),90000);let retry=true;
+  const current=generation;busy=true;controls();clearTimeout(timer);$('connectionStatus').textContent='API取得中';status('車両情報を取得しています。初回のサーバー起動には時間がかかる場合があります。');
+  const requestController=new AbortController();controller=requestController;let timeout;let retry=true;
+  const deadline=new Promise((_,reject)=>{timeout=setTimeout(()=>{requestController.abort();reject(new DOMException('Request timed out','AbortError'));},90000);});
   try {
-   const response=await fetch(endpoint+(captcha?'/api/auth/captcha':'/api/snapshot'),{method:captcha?'POST':'GET',headers:{...(!sessionMode?{Authorization:'Bearer '+key}:{}),...(captcha?{'Content-Type':'application/json'}:{})},...(captcha?{body:JSON.stringify({code:captcha})}:{}),mode:'cors',credentials:sessionMode?'same-origin':'omit',cache:'no-store',redirect:'error',signal:controller.signal});
-   const data=await response.json();if(current!==generation)return;
+   const {response,data}=await Promise.race([deadline,(async()=>{
+    const response=await fetch(endpoint+(captcha?'/api/auth/captcha':'/api/snapshot'),{method:captcha?'POST':'GET',headers:{...(!sessionMode?{Authorization:'Bearer '+key}:{}),...(captcha?{'Content-Type':'application/json'}:{})},...(captcha?{body:JSON.stringify({code:captcha})}:{}),mode:'cors',credentials:sessionMode?'same-origin':'omit',cache:'no-store',redirect:'error',signal:requestController.signal});
+    const data=await response.json();return {response,data};
+   })()]);if(current!==generation)return;
    if(!response.ok){
     const code=data.code||data.detail?.code;
     if(code==='APP_LOGIN_REQUIRED'){
@@ -100,7 +103,7 @@
     $('connectionStatus').textContent='API取得停止';throw Error(messages[code]||'サーバーの応答を確認できません。接続先の設定を確認してください。');
    }
    apply(data);
-  } catch(err){if(current===generation){$('connectionStatus').textContent='API通信待ち';if(tripStatistics){tripStale=true;renderTrips();}status(err.name==='AbortError'?'接続がタイムアウトしました。少し待って「今すぐ取得」を押してください。':err instanceof TypeError?'接続できません。接続先URL・サーバーの起動状態・ALLOWED_ORIGIN設定を確認してください。':err.message);}}
+  } catch(err){if(current===generation){$('connectionStatus').textContent=err.name==='AbortError'?'APIタイムアウト':'API取得停止';if(tripStatistics){tripStale=true;renderTrips();}status(err.name==='AbortError'?'接続がタイムアウトしました。少し待って「今すぐ取得」を押してください。':err instanceof TypeError?'接続できません。接続先URL・サーバーの起動状態・ALLOWED_ORIGIN設定を確認してください。':err.message);}}
   finally{clearTimeout(timeout);if(current===generation){busy=false;controller=null;controls();if(retry)schedule();}}
  }
  $('apiForm').addEventListener('submit',event=>{
